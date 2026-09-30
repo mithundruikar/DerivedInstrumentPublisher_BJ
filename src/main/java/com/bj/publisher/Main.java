@@ -17,6 +17,8 @@ import java.util.concurrent.locks.LockSupport;
 
 public class Main {
     private static final Logger LOGGER = LogManager.getLogger(Main.class);
+    private static final int SOURCE_REPEAT_COUNT = 1;
+    private static final long SOURCE_REPEAT_INTERVAL_SECONDS = 15L;
 
     public static void main(String[] args) throws Exception {
         if (args.length == 0) {
@@ -79,7 +81,14 @@ public class Main {
             fastConsumer.start();
             slowConsumer.start();
 
-            fileSource.run();
+            for (int burst = 1; burst <= SOURCE_REPEAT_COUNT && !shutdownRequested.get(); burst++) {
+                LOGGER.info("Starting source burst {}/{}", burst, SOURCE_REPEAT_COUNT);
+                fileSource.run();
+                LOGGER.info("Completed source burst {}/{}", burst, SOURCE_REPEAT_COUNT);
+                if (burst < SOURCE_REPEAT_COUNT) {
+                    waitForNextBurst(shutdownRequested, SOURCE_REPEAT_INTERVAL_SECONDS);
+                }
+            }
 
             long targetSequence = instrumentService.stats().currentDerivedSequence();
             LOGGER.info("Source finished at sequence={}. Waiting for consumers to catch up (Ctrl+C to stop).", targetSequence);
@@ -114,6 +123,13 @@ public class Main {
                 return;
             }
             LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10L));
+        }
+    }
+
+    private static void waitForNextBurst(AtomicBoolean shutdownRequested, long intervalSeconds) {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(intervalSeconds);
+        while (!shutdownRequested.get() && System.nanoTime() < deadline) {
+            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(50L));
         }
     }
 }

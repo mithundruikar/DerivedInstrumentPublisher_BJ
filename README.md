@@ -14,6 +14,8 @@ This project demonstrates a low-latency **source → service → ring buffer →
 - For slower/strict consumers, a **journal-based durable path** is defined as an extension point (**TBD**).
 
 ### What I would do with more time
+- Improve memory efficiency and GC-friendliness of the ring buffer and service. Currently, objects are created per update, which is not ideal for high-throughput workloads.
+- Pre-allocate and reuse objects where possible.
 - Add better consumption strategies beyond one lossy latest-only pattern.
 - Implement `JournalWriter` and end-to-end at-least-once durable consumption.
 - Handle journal crash/restart edge cases more deeply (recovery semantics, checkpointing, replay boundaries).
@@ -106,10 +108,15 @@ java -cp "target/classes:target/dependency/*" \
 
 The program will:
 - start real-time consumers
-- process the CSV source
+- replay the CSV source in repeated bursts (default: 3 runs)
+- wait 5 seconds between bursts to simulate bursty updates
 - wait until consumers catch up
 - print final stats
 - exit (or stop early on Ctrl+C)
+
+Burst settings are currently internal constants in `Main`:
+- `SOURCE_REPEAT_COUNT`
+- `SOURCE_REPEAT_INTERVAL_SECONDS`
 
 ## Example output (abridged)
 
